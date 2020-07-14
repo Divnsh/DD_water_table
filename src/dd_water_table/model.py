@@ -75,8 +75,9 @@ test_data1=pd.read_csv(os.path.join(DATA_DIR,'test_data_encoded.csv'))
 test_data =test_data1.drop('id',axis=1)
 
 model = joblib.load('xgboost_bst_model.pkl')
+model.fit(train_x, train_y)
 preds = grid_search.predict_proba(test_data)
 best_preds = [np.argmax(line) for line in preds]
-test_data1['status_group'] = best_preds
+test_data1['status_group']=le.inverse_transform(best_preds)
 print("\nPredictions sample: \n",test_data1[['id','status_group']].head(5))
 test_data1[['id','status_group']].to_csv(os.path.join(DATA_DIR,'pred2_xg.csv'),header=True,index=False)

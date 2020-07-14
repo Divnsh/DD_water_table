@@ -7,6 +7,7 @@ import datetime
 import seaborn as sns
 from sklearn.model_selection import GridSearchCV,StratifiedKFold,RepeatedStratifiedKFold
 from sklearn.metrics import classification_report
+import joblib
 
 np.random.seed(2020)
 
@@ -32,11 +33,13 @@ raw_data.iloc[:,cat_features] = raw_data.iloc[:,cat_features].replace('unknown',
 raw_data.iloc[:,cat_features] = raw_data.iloc[:,cat_features].replace(np.nan,'nan')
 
 # Setting up and training in gridsearchcv
-cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=2020)
+cv = StratifiedKFold(n_splits=10, shuffle=True)
+#cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3)
+
 params = {'depth':[6,10],
           'iterations':[1000],
           'learning_rate':[0.1],
-          'l2_leaf_reg':[1,3,5,10,50],
+          'l2_leaf_reg':[3,10,50],
           'border_count':[254],
           'loss_function':['MultiClass'],
           'task_type':["GPU"],
@@ -66,16 +69,20 @@ print("Catboost model trained and saved!")
 # Making test set predictions
 test1=pd.read_csv('test.csv')
 test=test1.iloc[:,1:]
+test['month']=pd.to_datetime(test['date_recorded']).dt.month # Adding month in feature list
+# Dates are converting to days since date
+test['date_recorded'] = pd.to_datetime(test['date_recorded']).apply(
+        lambda x: (datetime.datetime.today() - x).days)
 cat_features=[i for i,c in enumerate(test.columns) if test[c].dtype=='object']
 test.iloc[:,cat_features] = test.iloc[:,cat_features].replace('unknown', 'nan')
 test.iloc[:,cat_features] = test.iloc[:,cat_features].replace(np.nan,'nan')
 model = joblib.load(os.path.join(model_path,'catboost_bst_model.pkl'))
-model.fit(raw_data, raw_target['status_group'])
+model.best_estimator_.fit(raw_data, raw_target['status_group'])
 preds = model.predict_proba(test)
 best_preds = [np.argmax(line) for line in preds]
 test1['status_group'] = best_preds
 recode2={v:k for k,v in recode.items()}
 test1['status_group']=test1['status_group'].map(recode2)
 print("\nPredictions sample: \n",test1[['id','status_group']].head(5))
-test1[['id','status_group']].to_csv(os.path.join(DATA_DIR,'pred1.csv'),header=True,index=False)
+test1[['id','status_group']].to_csv(os.path.join(DATA_DIR,'pred1_ctb.csv'),header=True,index=False)
 
