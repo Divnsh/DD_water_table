@@ -1,5 +1,3 @@
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
 from catboost import CatBoostClassifier
 from dd_water_table.FeatureEngg import read_Data
 import pandas as pd
@@ -12,6 +10,7 @@ from sklearn.metrics import classification_report
 
 np.random.seed(2020)
 
+# Train data formatting
 model_path = '/home/divyansh/DataScience/kaggle_practice/Drivendata_competitions/Pump_it_up_water_table/model'
 if not os.path.exists(model_path):
     os.makedirs(model_path)
@@ -32,42 +31,51 @@ cat_features=[i for i,c in enumerate(raw_data.columns) if raw_data[c].dtype=='ob
 raw_data.iloc[:,cat_features] = raw_data.iloc[:,cat_features].replace('unknown', 'nan')
 raw_data.iloc[:,cat_features] = raw_data.iloc[:,cat_features].replace(np.nan,'nan')
 
+# Setting up and training in gridsearchcv
 cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=2020)
-params = {'depth':[3,6,8,10],
-          'iterations':[100,1000],
-          'learning_rate':[0.1,0.2],
-          'l2_leaf_reg':[3,1,5,10,50],
-          'border_count':[32,5,10,20,50,100,200],
-          'ctr_border_count':[100,200,255],
+params = {'depth':[6,10],
+          'iterations':[1000],
+          'learning_rate':[0.1],
+          'l2_leaf_reg':[1,3,5,10,50],
+          'border_count':[254],
           'loss_function':['MultiClass'],
           'task_type':["GPU"],
             'devices':['0:1'],
             'eval_metric':['Accuracy'],
-            'boosting_type':["Ordered"],
-            'bagging_temperature':[0,0.2],
-            'use_best_model':[True],
+            'boosting_type':["Plain"],
+            'bagging_temperature':[0.2],
             #'one_hot_max_size':[255]
           }
 model = CatBoostClassifier(cat_features=cat_features)
-
 print("Performing 10-fold CV on train data..")
 time0=datetime.datetime.now()
-grid_search = GridSearchCV(model, param_grid=params, scoring='roc_auc', n_jobs=-1, cv=cv, verbose=3)
+grid_search = GridSearchCV(model, param_grid=params, scoring='accuracy', n_jobs=-1, cv=cv, verbose=3)
 grid_search.fit(raw_data, raw_target['status_group'])
 time1=datetime.datetime.now()
 print(f'Time taken for model fitting: {str(time1-time0)}')
-
-print('Raw AUC score:', grid_search.best_score_)
+print('Raw accuracy score:', grid_search.best_score_)
 for param_name in sorted(grid_search.best_params_.keys()):
     print("%s: %r" % (param_name, grid_search.best_params_[param_name]))
-
 preds = grid_search.predict_proba(raw_data)
 best_preds = [np.argmax(line) for line in preds]
-
-
 print("\nValidation results: \n",classification_report(raw_target['status_group'],best_preds))
-
 from sklearn.externals import joblib
-
 joblib.dump(grid_search, os.path.join(model_path,'catboost_bst_model.pkl'), compress=True)
-# bst = joblib.load('bst_model.pkl') # load it later
+print("Catboost model trained and saved!")
+
+# Making test set predictions
+test1=pd.read_csv('test.csv')
+test=test1.iloc[:,1:]
+cat_features=[i for i,c in enumerate(test.columns) if test[c].dtype=='object']
+test.iloc[:,cat_features] = test.iloc[:,cat_features].replace('unknown', 'nan')
+test.iloc[:,cat_features] = test.iloc[:,cat_features].replace(np.nan,'nan')
+model = joblib.load(os.path.join(model_path,'catboost_bst_model.pkl'))
+model.fit(raw_data, raw_target['status_group'])
+preds = model.predict_proba(test)
+best_preds = [np.argmax(line) for line in preds]
+test1['status_group'] = best_preds
+recode2={v:k for k,v in recode.items()}
+test1['status_group']=test1['status_group'].map(recode2)
+print("\nPredictions sample: \n",test1[['id','status_group']].head(5))
+test1[['id','status_group']].to_csv(os.path.join(DATA_DIR,'pred1.csv'),header=True,index=False)
+

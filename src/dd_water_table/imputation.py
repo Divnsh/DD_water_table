@@ -11,21 +11,24 @@ from sklearn.metrics.pairwise import paired_distances
 from sklearn.preprocessing import MinMaxScaler
 #from fancyimpute import KNN
 from sklearn.preprocessing import LabelEncoder
+from dd_water_table.FeatureEngg import main,read_Data
 
 np.random.seed(2020)
 time0=datetime.datetime.now()
 
-# Reading encoded data
-
+# Reading data and encoding to Generate train data
 DATA_DIR = '/home/divyansh/DataScience/kaggle_practice/Drivendata_competitions/Pump_it_up_water_table/Data'
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
+dlist=read_Data(DATA_DIR)
+raw_target = dlist[0]
+raw_data = dlist[1]
+del dlist
+main(raw_data,raw_target,'train')
 
-data_folder = os.path.join(DATA_DIR,'*.csv')
-file_list = sorted(glob(data_folder))
-
-# Reading data
-labels = pd.read_csv(file_list[0])
-
-data=pd.read_csv(os.path.join(DATA_DIR,'raw_data_encoded.csv'))
+# Reading encoded data
+labels = raw_target
+data=pd.read_csv(os.path.join(DATA_DIR,'train_data_encoded.csv'))
 data = data.merge(labels)
 data = data.replace(-99,np.nan)
 

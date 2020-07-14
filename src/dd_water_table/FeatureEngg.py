@@ -47,12 +47,9 @@ def enc_with_na(data, encoder, n_feat):  # Helper function for encoding with nan
     enc[np.array(data.notnull()).ravel()] = f.toarray()
     return enc
 
-if __name__=='__main__':
-    dlist=read_Data(DATA_DIR)
-    raw_target = dlist[0]
-    raw_data = dlist[1]
-    del dlist
-
+def main(rawdata,rawtarget=pd.DataFrame(),train_test_flag='train'):
+    raw_target = rawtarget
+    raw_data = rawdata
     raw_data['date_recorded'] = pd.to_datetime(raw_data['date_recorded']).apply(
         lambda x: (datetime.datetime.today() - x).days)
     numeric_cols = [c for c in raw_data.columns if
@@ -134,6 +131,13 @@ if __name__=='__main__':
     raw_data_encoded = pd.concat(
         [raw_data.drop(ohc + hashc_ind + hashc0 + hashc1 + hashc2, axis=1), pd.DataFrame(np.hstack([oh, hashed_ind, hashed]))],
         axis=1)
-    raw_data_encoded.to_csv(os.path.join(DATA_DIR, 'raw_data_encoded.csv'), header=True, index=False)
-
+    raw_data_encoded.to_csv(os.path.join(DATA_DIR, train_test_flag+'_data_encoded.csv'), header=True, index=False)
     print("Written encoded data to disk..")
+
+if __name__=='main':
+    dlist = read_Data(DATA_DIR)
+    raw_target = dlist[0]
+    raw_data = dlist[1]
+    del dlist
+    train_test_flag='train'
+    main(raw_data,raw_target,train_test_flag)
